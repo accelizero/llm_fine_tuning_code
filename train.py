@@ -74,7 +74,7 @@ bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,                    # 启用4位量化
     bnb_4bit_use_double_quant=True,       # 是否使用双重量化
     bnb_4bit_quant_type="nf4",             # 量化类型，nf4是一种归一化浮点4位格式
-    bnb_4bit_compute_dtype=torch.float16 # 计算时使用的dtype，加速且精度适中
+    bnb_4bit_compute_dtype=torch.float32 # 计算时使用的dtype，加速且精度适中
 )
 
 # 加载基础模型
@@ -83,7 +83,7 @@ model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
     quantization_config=bnb_config,  # 传入量化配置
     device_map=DEVICE,  # 自动选择设备 (CPU/GPU)
-    dtype=torch.float16, # 使用bfloat16以节省显存并加速
+    torch_dtype=torch.float32, # 使用bfloat16以节省显存并加速
     trust_remote_code=True,
     low_cpu_mem_usage=True  # 可选，减小CPU内存占用
 )
@@ -183,7 +183,7 @@ base_model_for_inference = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
     quantization_config=bnb_config,  # 传入量化配置
     device_map=DEVICE,
-    dtype=torch.float16,
+    torch_dtype=torch.float32,
     trust_remote_code=True,
     low_cpu_mem_usage=True  # 可选，减小CPU内存占用
 )
@@ -192,6 +192,10 @@ base_model_for_inference = AutoModelForCausalLM.from_pretrained(
 base_model_for_inference = prepare_model_for_kbit_training(base_model_for_inference)
 
 model_with_adapter = PeftModel.from_pretrained(base_model_for_inference, ADAPTER_PATH)
+
+# 这是关键步骤，确保LoRA适配器部分也被转换
+model_with_adapter.to(dtype=torch.float32) 
+
 logging.info("✅ LoRA适配器加载成功，模型已准备好对话！")
 
 
