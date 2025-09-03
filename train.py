@@ -15,8 +15,8 @@ import shutil
 import torch
 from datasets import load_dataset, Dataset
 from huggingface_hub import login
-from peft import LoraConfig, PeftModel
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from peft import LoraConfig, PeftModel, prepare_model_for_kbit_training
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from trl import SFTTrainer, SFTConfig
 import logging
 
@@ -36,8 +36,8 @@ DATASET_FILE = "dataset.jsonl"
 # 定义模型ID - 只需要修改这一行！
 MODEL_ID = "google/gemma-3-270m-it"
 
-# 定义设备
-DEVICE = "cuda"
+# 定义设备（cpu: None, gpu: "cuda"）
+DEVICE = None
 
 # 自动生成模型相关的路径和名称
 def generate_paths_from_model_id(model_id):
@@ -69,15 +69,27 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
+# 配置量化参数
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,                    # 启用4位量化
+    bnb_4bit_use_double_quant=True,       # 是否使用双重量化
+    bnb_4bit_quant_type="nf4",             # 量化类型，nf4是一种归一化浮点4位格式
+    bnb_4bit_compute_dtype=torch.float16 # 计算时使用的dtype，加速且精度适中
+)
+
 # 加载基础模型
 logging.info(f"正在加载基础模型 '{MODEL_ID}'...")
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
+    quantization_config=bnb_config,  # 传入量化配置
     device_map=DEVICE,  # 自动选择设备 (CPU/GPU)
-    torch_dtype=torch.float32, # 使用bfloat16以节省显存并加速
+    dtype=torch.float16, # 使用bfloat16以节省显存并加速
     trust_remote_code=True,
-    # attn_implementation="flash_attention_2" # 如果硬件支持，使用Flash Attention 2以获得最佳性能
+    low_cpu_mem_usage=True  # 可选，减小CPU内存占用
 )
+
+# 准备模型进行量化训练
+model = prepare_model_for_kbit_training(model)
 
 logging.info(f"✅ {MODEL_ID} 模型和分词器已成功加载！")
 logging.info(f"模型显存占用: {model.get_memory_footprint() / 1e9:.2f} GB")
@@ -169,11 +181,16 @@ if DEVICE == "cuda":
 logging.info("为推理重新加载模型和适配器...")
 base_model_for_inference = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
+    quantization_config=bnb_config,  # 传入量化配置
     device_map=DEVICE,
-    torch_dtype=torch.float32,
+    dtype=torch.float16,
     trust_remote_code=True,
-    # attn_implementation="flash_attention_2"
+    low_cpu_mem_usage=True  # 可选，减小CPU内存占用
 )
+
+# 准备模型进行量化训练
+base_model_for_inference = prepare_model_for_kbit_training(base_model_for_inference)
+
 model_with_adapter = PeftModel.from_pretrained(base_model_for_inference, ADAPTER_PATH)
 logging.info("✅ LoRA适配器加载成功，模型已准备好对话！")
 
