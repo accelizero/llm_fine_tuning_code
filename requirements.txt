@@ -1,0 +1,8 @@
+bitsandbytes
+datasets
+huggingface-hub
+peft
+pillow
+torch
+transformers
+trl
