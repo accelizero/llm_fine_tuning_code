@@ -70,18 +70,20 @@ if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
 # 配置量化参数
+'''
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,                    # 启用4位量化
     bnb_4bit_use_double_quant=True,       # 是否使用双重量化
     bnb_4bit_quant_type="nf4",             # 量化类型，nf4是一种归一化浮点4位格式
     bnb_4bit_compute_dtype=torch.float32 # 计算时使用的dtype，加速且精度适中
 )
+'''
 
 # 加载基础模型
 logging.info(f"正在加载基础模型 '{MODEL_ID}'...")
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
-    quantization_config=bnb_config,  # 传入量化配置
+    # quantization_config=bnb_config,  # 传入量化配置
     device_map=DEVICE,  # 自动选择设备 (CPU/GPU)
     torch_dtype=torch.float32, # 使用bfloat16以节省显存并加速
     trust_remote_code=True,
@@ -89,7 +91,7 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 # 准备模型进行量化训练
-model = prepare_model_for_kbit_training(model)
+# model = prepare_model_for_kbit_training(model)
 
 logging.info(f"✅ {MODEL_ID} 模型和分词器已成功加载！")
 logging.info(f"模型显存占用: {model.get_memory_footprint() / 1e9:.2f} GB")
@@ -181,7 +183,7 @@ if DEVICE == "cuda":
 logging.info("为推理重新加载模型和适配器...")
 base_model_for_inference = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
-    quantization_config=bnb_config,  # 传入量化配置
+    # quantization_config=bnb_config,  # 传入量化配置
     device_map=DEVICE,
     torch_dtype=torch.float32,
     trust_remote_code=True,
@@ -189,7 +191,7 @@ base_model_for_inference = AutoModelForCausalLM.from_pretrained(
 )
 
 # 准备模型进行量化训练
-base_model_for_inference = prepare_model_for_kbit_training(base_model_for_inference)
+#base_model_for_inference = prepare_model_for_kbit_training(base_model_for_inference)
 
 model_with_adapter = PeftModel.from_pretrained(base_model_for_inference, ADAPTER_PATH)
 
@@ -226,7 +228,6 @@ def chat_with_finetuned_model(question: str):
     print("------------------")
 
 # 2. 开始测试
-chat_with_finetuned_model("分析一下近期恒生科技指数的趋势")
 chat_with_finetuned_model("美团最新的财报怎么样？")
 
 
@@ -244,7 +245,7 @@ merged_model.save_pretrained(MERGED_MODEL_PATH)
 tokenizer.save_pretrained(MERGED_MODEL_PATH)
 logging.info("✅ 合并后的模型和分词器已成功保存！")
 
-exit()
+#exit()
 # --- (可选) 第6部分: 创建Ollama模型文件 ---
 logging.info("\n--- (Optional) Part 6: 创建Ollama模型文件 ---")
 
